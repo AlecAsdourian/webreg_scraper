@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS courses (
     UNIQUE(term, subj_course_id)
 );
 
-CREATE INDEX idx_courses_term ON courses(term);
-CREATE INDEX idx_courses_lookup ON courses(term, subj_code, course_code);
+CREATE INDEX IF NOT EXISTS idx_courses_term ON courses(term);
+CREATE INDEX IF NOT EXISTS idx_courses_lookup ON courses(term, subj_code, course_code);
 
 -- Sections table (section-level data)
 CREATE TABLE IF NOT EXISTS sections (
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS sections (
     UNIQUE(course_id, section_id)
 );
 
-CREATE INDEX idx_sections_course ON sections(course_id);
-CREATE INDEX idx_sections_lookup ON sections(section_id);
+CREATE INDEX IF NOT EXISTS idx_sections_course ON sections(course_id);
+CREATE INDEX IF NOT EXISTS idx_sections_lookup ON sections(section_id);
 
 -- Meetings table (individual meeting times for each section)
 CREATE TABLE IF NOT EXISTS meetings (
@@ -47,4 +47,4 @@ CREATE TABLE IF NOT EXISTS meetings (
     FOREIGN KEY (section_id_pk) REFERENCES sections(section_id_pk) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_meetings_section ON meetings(section_id_pk);
+CREATE INDEX IF NOT EXISTS idx_meetings_section ON meetings(section_id_pk);

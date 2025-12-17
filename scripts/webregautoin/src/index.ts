@@ -10,7 +10,7 @@ import * as path from "path";
 import * as puppeteer from "puppeteer";
 import * as http from "http";
 import { parseArgs } from 'node:util';
-import { PUSH, fetchCookies, getTermSeqId, logNice, printHelpMessage } from "./fns";
+import { PUSH, fetchCookies, fetchDegreeAudit, getTermSeqId, logNice, printHelpMessage } from "./fns";
 import { IConfig, Context, ITermInfo } from "./types";
 
 async function main(): Promise<void> {
@@ -95,6 +95,19 @@ async function main(): Promise<void> {
                     cookie: await fetchCookies(context, browser, false)
                 })
             );
+        } else if (req.url === "/degree_audit") {
+            try {
+                const auditData = await fetchDegreeAudit(context, browser);
+                res.end(JSON.stringify(auditData));
+            } catch (error) {
+                res.statusCode = 500;
+                res.end(
+                    JSON.stringify({
+                        error: "Failed to fetch degree audit",
+                        message: error instanceof Error ? error.message : String(error)
+                    })
+                );
+            }
         } else if (req.url === "/history") {
             res.end(
                 JSON.stringify(context.session.callHistory)

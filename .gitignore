@@ -11,6 +11,14 @@ target/
 config.json
 *.db
 
+# Degree audit output files
+degree_audit.html
+degree_audit_parsed.json
+degree_audit_test.json
+
+# HTML structure reference files
+html-structures/
+
 # Claude Code files
 .claude/
 CLAUDE.md

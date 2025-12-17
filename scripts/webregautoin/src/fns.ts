@@ -320,3 +320,143 @@ export async function fetchCookies(ctx: Context, browser: puppeteer.Browser, isI
         return cookies.map(x => `${x.name}=${x.value}`).join("; ");
     }
 }
+
+/**
+ * Scrapes degree audit data by navigating through the degree audit system.
+ * This function:
+ * 1. Ensures user is logged in (reuses existing session from fetchCookies)
+ * 2. Navigates to degree audit list page
+ * 3. Triggers audit creation if needed
+ * 4. Extracts the most recent audit ID
+ * 5. Navigates to audit read page
+ * 6. Scrapes and returns the audit data as JSON
+ *
+ * @param ctx The context containing credentials and session info
+ * @param browser The Puppeteer browser instance
+ * @returns JSON object containing degree audit data
+ */
+export async function fetchDegreeAudit(ctx: Context, browser: puppeteer.Browser): Promise<any> {
+    const termLog = ctx.termInfo?.termName ?? "N/A";
+    logNice(termLog, "Starting degree audit scrape");
+
+    const page = await browser.newPage();
+
+    try {
+        // Step 1: Navigate to degree audit list page
+        logNice(termLog, "Navigating to degree audit list page");
+        await page.goto("https://act.ucsd.edu/studentDarsSelfservice/audit/list.html", {
+            waitUntil: 'networkidle2',
+            timeout: 30000
+        });
+
+        // Check if we need to log in (if session expired)
+        const content = await page.content();
+        if (content.includes("TritonLink user name") || content.includes("Sign In")) {
+            logNice(termLog, "Session expired, re-authenticating for degree audit");
+            // Reuse the fetchCookies authentication flow
+            await fetchCookies(ctx, browser, false);
+            // Navigate again after login
+            await page.goto("https://act.ucsd.edu/studentDarsSelfservice/audit/list.html", {
+                waitUntil: 'networkidle2'
+            });
+        }
+
+        // Step 2: Check if we need to create a new audit
+        // Look for existing audits on the list page
+        const pageContent = await page.content();
+
+        // Try to find existing audit links
+        // The audit list has links like: read.html?id=JobQueueRun!!!!...
+        let auditIdMatch = pageContent.match(/read\.html\?id=([^"]+)/);
+
+        if (!auditIdMatch) {
+            // No existing audits found, need to create one
+            logNice(termLog, "No existing audit found, attempting to create new audit");
+
+            try {
+                // Navigate to create page
+                await page.goto("https://act.ucsd.edu/studentDarsSelfservice/audit/create.html", {
+                    waitUntil: 'networkidle2',
+                    timeout: 15000
+                });
+
+                // Look for form submit button or link
+                // Try multiple possible selectors
+                const submitButton = await Promise.race([
+                    page.waitForSelector('input[type="submit"]', { timeout: 5000 }).catch(() => null),
+                    page.waitForSelector('button[type="submit"]', { timeout: 5000 }).catch(() => null),
+                    page.waitForSelector('input[value*="Run"]', { timeout: 5000 }).catch(() => null),
+                ]);
+
+                if (submitButton) {
+                    await submitButton.click();
+                    // Wait for redirect back to list page
+                    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 });
+
+                    // Wait a bit for audit to generate
+                    logNice(termLog, "Waiting for audit to generate (5 seconds)");
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+
+                    // Get the new audit ID
+                    const newPageContent = await page.content();
+                    auditIdMatch = newPageContent.match(/read\.html\?id=([^"]+)/);
+
+                    if (!auditIdMatch) {
+                        throw new Error("Failed to find audit ID after creation");
+                    }
+                } else {
+                    throw new Error("Could not find submit button on create page");
+                }
+            } catch (error) {
+                logNice(termLog, `Failed to create new audit: ${error}`);
+                throw error;
+            }
+        }
+
+        // Step 3: Extract audit ID and navigate to read page
+        const finalPageContent = await page.content();
+        const finalAuditIdMatch = finalPageContent.match(/read\.html\?id=([^"]+)/);
+
+        if (!finalAuditIdMatch) {
+            throw new Error("Unable to find audit ID");
+        }
+
+        const auditId = finalAuditIdMatch[1];
+        logNice(termLog, `Found audit ID: ${auditId}`);
+
+        // Navigate to the audit read page
+        const readUrl = `https://act.ucsd.edu/studentDarsSelfservice/audit/read.html?id=${auditId}`;
+        logNice(termLog, `Navigating to: ${readUrl}`);
+        await page.goto(readUrl, { waitUntil: 'networkidle2' });
+
+        // Step 4: Extract audit data from the page
+        logNice(termLog, "Extracting degree audit data from HTML");
+
+        // This will need to be customized based on actual HTML structure
+        // For now, return the full HTML content for manual inspection
+        const auditHtml = await page.content();
+
+        // TODO: Parse the HTML to extract structured data
+        // For now, we'll return basic info + full HTML
+        const auditData = {
+            auditId: auditId,
+            scrapedAt: new Date().toISOString(),
+            url: readUrl,
+            html: auditHtml,
+            // These will be populated once we parse the HTML:
+            // studentInfo: { ... },
+            // requirements: [ ... ],
+            // completedCourses: [ ... ]
+        };
+
+        logNice(termLog, "Degree audit scrape complete\n");
+        await page.close();
+
+        return auditData;
+
+    } catch (error) {
+        logNice(termLog, `Error scraping degree audit: ${error}`);
+        await page.close();
+        throw error;
+    }
+}

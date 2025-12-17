@@ -11,6 +11,7 @@ use std::time::Duration;
 use tracing::log::{error, info, warn};
 
 mod db;
+mod degree_audit;
 mod scraper;
 mod server;
 mod types;

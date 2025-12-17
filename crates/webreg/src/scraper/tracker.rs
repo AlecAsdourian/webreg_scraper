@@ -44,7 +44,62 @@ pub async fn run_tracker(state: Arc<WrapperState>, verbose: bool) {
         return;
     }
 
-    // Scrape schedule data for all terms ONCE at startup
+    // Scrape degree audit data FIRST (quick, runs before long schedule scrape)
+    info!("Starting degree audit scrape");
+    match crate::degree_audit::fetch_degree_audit(&state).await {
+        Ok(raw_audit) => {
+            info!("Successfully fetched degree audit data (ID: {})", raw_audit.audit_id);
+
+            // Save raw HTML for manual inspection
+            if let Err(e) = std::fs::write("degree_audit.html", &raw_audit.html) {
+                warn!("Failed to save degree audit HTML: {}", e);
+            } else {
+                info!("Saved degree audit HTML to degree_audit.html");
+            }
+
+            // Parse the HTML
+            match crate::degree_audit::parse_degree_audit_html(&raw_audit) {
+                Ok(parsed_audit) => {
+                    info!("Successfully parsed degree audit");
+
+                    if let Some(ref name) = parsed_audit.student_info.name {
+                        info!("  Student: {}", name);
+                    }
+                    if let Some(ref major) = parsed_audit.student_info.major {
+                        info!("  Major: {}", major);
+                    }
+
+                    info!("  Requirements: {}", parsed_audit.requirements.len());
+
+                    // Count courses
+                    let total_courses: usize = parsed_audit.requirements
+                        .iter()
+                        .map(|r| r.courses.len())
+                        .sum();
+                    info!("  Total courses: {}", total_courses);
+
+                    // Save parsed data as JSON
+                    if let Ok(json) = serde_json::to_string_pretty(&parsed_audit) {
+                        if let Err(e) = std::fs::write("degree_audit_parsed.json", json) {
+                            warn!("Failed to save parsed degree audit JSON: {}", e);
+                        } else {
+                            info!("Saved parsed degree audit to degree_audit_parsed.json");
+                        }
+                    }
+
+                    // TODO: Store in database
+                }
+                Err(e) => {
+                    warn!("Failed to parse degree audit HTML: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            warn!("Failed to fetch degree audit data: {}", e);
+        }
+    }
+
+    // Scrape schedule data for all terms ONCE at startup (slow, ~1 hour for 1904 courses)
     for term_data in state.all_terms.values() {
         if let Err(e) = scrape_initial_schedule_data(&state, term_data).await {
             warn!("[{}] Failed to scrape initial schedule data: {}", term_data.term, e);
