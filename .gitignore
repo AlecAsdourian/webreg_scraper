@@ -10,3 +10,7 @@ target/
 *.csv
 config.json
 *.db
+
+# Claude Code files
+.claude/
+CLAUDE.md

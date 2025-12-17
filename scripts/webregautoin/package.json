@@ -12,5 +12,8 @@
   "license": "MIT",
   "dependencies": {
     "puppeteer": "^22.6.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }

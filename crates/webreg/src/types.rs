@@ -28,6 +28,8 @@ pub struct WrapperState {
     pub api_base_endpoint: AddressPortInfo,
     /// The cookie server.
     pub cookie_server: AddressPortInfo,
+    /// Database manager for schedule/meeting data.
+    pub schedule_db: crate::db::ScheduleDbManager,
     /// The authentication manager, to be used by the server.
     #[cfg(feature = "auth")]
     pub auth_manager: basicauth::AuthManager,
@@ -93,6 +95,7 @@ impl WrapperState {
                 .unwrap(),
             api_base_endpoint: config.api_base_endpoint,
             cookie_server: config.cookie_server,
+            schedule_db: crate::db::ScheduleDbManager::new("schedules.db"),
             #[cfg(feature = "auth")]
             auth_manager: basicauth::AuthManager::new("auth.db"),
         }

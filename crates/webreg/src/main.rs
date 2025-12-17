@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::log::{error, info, warn};
 
+mod db;
 mod scraper;
 mod server;
 mod types;

@@ -44,6 +44,13 @@ pub async fn run_tracker(state: Arc<WrapperState>, verbose: bool) {
         return;
     }
 
+    // Scrape schedule data for all terms ONCE at startup
+    for term_data in state.all_terms.values() {
+        if let Err(e) = scrape_initial_schedule_data(&state, term_data).await {
+            warn!("[{}] Failed to scrape initial schedule data: {}", term_data.term, e);
+        }
+    }
+
     loop {
         state.is_running.store(true, Ordering::SeqCst);
 
@@ -88,6 +95,142 @@ pub async fn run_tracker(state: Arc<WrapperState>, verbose: bool) {
     info!("Quitting the tracker.");
 }
 
+/// Scrapes initial schedule data (meeting times, days, locations) for a term.
+/// This is called once at startup to populate the schedule database.
+///
+/// # Parameters
+/// - `state`: The wrapper state.
+/// - `info`: The term information.
+async fn scrape_initial_schedule_data(
+    state: &Arc<WrapperState>,
+    info: &TermInfo,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Check if data already exists for this term
+    if state.schedule_db.term_has_data(info.term.as_str()) {
+        info!("[{}] Schedule data already exists, skipping initial scrape", info.term);
+        return Ok(());
+    }
+
+    info!("[{}] Starting initial schedule data scrape", info.term);
+
+    // Search for all courses (same logic as enrollment tracking)
+    let mut results = vec![];
+    for search_query in &info.search_query {
+        let mut temp = state
+            .wrapper
+            .req(info.term.as_str())
+            .parsed()
+            .search_courses(SearchType::Advanced(search_query.clone()))
+            .await?;
+        results.append(&mut temp);
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+
+    info!("[{}] Found {} courses, fetching section details", info.term, results.len());
+
+    // For each course, get sections with meeting data
+    for (idx, course) in results.iter().enumerate() {
+        if idx % 10 == 0 {
+            info!("[{}] Progress: {}/{} courses processed", info.term, idx, results.len());
+        }
+
+        match state
+            .wrapper
+            .req(info.term.as_str())
+            .parsed()
+            .get_enrollment_count(course.subj_code.trim(), course.course_code.trim())
+            .await
+        {
+            Ok(sections) => {
+                // Insert into database
+                if let Err(e) = state.schedule_db.insert_course_with_sections(
+                    info.term.as_str(),
+                    sections,
+                ) {
+                    warn!("[{}] Failed to insert course {} {}: {}",
+                        info.term, course.subj_code, course.course_code, e);
+                }
+            }
+            Err(e) => {
+                warn!("[{}] Failed to fetch sections for {} {}: {}",
+                    info.term, course.subj_code, course.course_code, e);
+            }
+        }
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+
+    info!("[{}] Initial schedule data scrape complete", info.term);
+    Ok(())
+}
+
+/// Formats meeting days for CSV output
+fn format_meeting_days(days: &webweg::types::MeetingDay) -> String {
+    use webweg::types::MeetingDay;
+    match days {
+        MeetingDay::Repeated(v) => v.join(","),
+        MeetingDay::OneTime(s) => s.clone(),
+        MeetingDay::None => String::new(),
+    }
+}
+
+/// Formats time for CSV output
+fn format_time(hr: u32, min: u32) -> String {
+    format!("{:02}:{:02}", hr, min)
+}
+
+/// Writes a section with its meetings to CSV (one row per meeting)
+fn write_section_with_meetings(
+    writer: &mut BufWriter<std::fs::File>,
+    time: i64,
+    section: &webweg::types::CourseSection,
+) -> std::io::Result<()> {
+    if section.meetings.is_empty() {
+        // No meetings (online async course)
+        writeln!(
+            writer,
+            "{},{},{},{},{},{},{},{},{},,,,,,",
+            time,
+            section.subj_course_id,
+            section.section_code,
+            section.section_id,
+            section.all_instructors.join(" & ").replace(',', ";"),
+            section.available_seats,
+            section.waitlist_ct,
+            section.total_seats,
+            section.enrolled_ct,
+        )
+    } else {
+        // One row per meeting
+        for meeting in &section.meetings {
+            let days = format_meeting_days(&meeting.meeting_days);
+            let start = format_time(meeting.start_hr, meeting.start_min);
+            let end = format_time(meeting.end_hr, meeting.end_min);
+
+            writeln!(
+                writer,
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                time,
+                section.subj_course_id,
+                section.section_code,
+                section.section_id,
+                meeting.instructors.join(" & ").replace(',', ";"),
+                section.available_seats,
+                section.waitlist_ct,
+                section.total_seats,
+                section.enrolled_ct,
+                meeting.meeting_type,
+                days,
+                start,
+                end,
+                meeting.building,
+                meeting.room,
+            )?;
+        }
+        Ok(())
+    }
+}
+
 /// Tracks WebReg for enrollment information. This will continuously check specific courses for
 /// their enrollment information (number of students waitlisted/enrolled, total seats) along with
 /// basic course information and store this in a CSV file for later processing.
@@ -122,7 +265,7 @@ async fn track_webreg_enrollment(
         if is_new {
             writeln!(
                 w,
-                "time,subj_course_id,sec_code,sec_id,prof,available,waitlist,total,enrolled_ct"
+                "time,subj_course_id,sec_code,sec_id,prof,available,waitlist,total,enrolled_ct,meeting_type,meeting_days,start_time,end_time,building,room"
             )
             .unwrap();
         }
@@ -208,24 +351,10 @@ async fn track_webreg_enrollment(
                     }
 
                     let time = get_epoch_time();
-                    // Write to raw CSV dataset
-                    r.iter().for_each(|c| {
-                        writeln!(
-                            writer,
-                            "{},{},{},{},{},{},{},{},{}",
-                            time,
-                            c.subj_course_id,
-                            c.section_code,
-                            c.section_id,
-                            // Every instructor name (except staff) has a comma
-                            c.all_instructors.join(" & ").replace(',', ";"),
-                            c.available_seats,
-                            c.waitlist_ct,
-                            c.total_seats,
-                            c.enrolled_ct,
-                        )
-                        .unwrap()
-                    });
+                    // Write each section with its meetings to CSV
+                    for section in &r {
+                        write_section_with_meetings(&mut writer, time, section).unwrap();
+                    }
                 }
                 _ => {
                     fail_count += 1;

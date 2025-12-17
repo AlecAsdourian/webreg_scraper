@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::routing::{get, post};
 use axum::{middleware as mw, Router};
 
-use crate::server::endpoints::{status, ww_cookies, ww_general};
+use crate::server::endpoints::{schedule, status, ww_cookies, ww_general};
 use crate::server::middleware::*;
 use crate::types::WrapperState;
 
@@ -50,6 +50,8 @@ pub fn create_router(app_state: Arc<WrapperState>) -> Router {
         .route("/subject_codes", get(ww_general::get_subject_codes))
         .route("/course_text", get(ww_general::get_course_text))
         .route("/section_text", get(ww_general::get_section_text))
+        .route("/schedule_data", get(schedule::get_schedule_data))
+        .route("/schedule_data/:section_id", get(schedule::get_section_meetings))
         .merge(cookie_router)
         .layer(mw::from_fn_with_state(
             app_state.clone(),
