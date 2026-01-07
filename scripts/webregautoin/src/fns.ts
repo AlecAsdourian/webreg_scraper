@@ -322,6 +322,112 @@ export async function fetchCookies(ctx: Context, browser: puppeteer.Browser, isI
 }
 
 /**
+ * Gets cookies specifically for the DARS (Degree Audit) system.
+ * DARS has a separate session from WebReg, so we need to navigate to it
+ * and extract the cookies after authentication.
+ *
+ * @param ctx The context containing credentials and session info
+ * @param browser The Puppeteer browser instance
+ * @returns Cookie string for the DARS system
+ */
+export async function fetchDarsCookies(ctx: Context, browser: puppeteer.Browser): Promise<string> {
+    const termLog = "DARS";
+    logNice(termLog, "Fetching DARS cookies");
+
+    // Close any unnecessary pages
+    let pages = await browser.pages();
+    while (pages.length > 1) {
+        await pages.at(-1)!.close();
+        pages = await browser.pages();
+    }
+
+    const page = await browser.newPage();
+
+    try {
+        // Navigate to DARS list page - this will trigger SSO if needed
+        logNice(termLog, "Navigating to DARS list page");
+        const resp = await page.goto("https://act.ucsd.edu/studentDarsSelfservice/audit/list.html", {
+            waitUntil: 'networkidle2',
+            timeout: 30000
+        });
+
+        if (!resp) {
+            throw new Error("Unable to navigate to DARS");
+        }
+
+        logNice(termLog, `Reached ${resp.url()} with status ${resp.status()}`);
+
+        // Check if we need to authenticate
+        const content = await page.content();
+        if (content.includes("Signing on using:") || content.includes("TritonLink user name")) {
+            logNice(termLog, "SSO login required, entering credentials");
+
+            await page.type('#ssousername', ctx.webreg.username);
+            await page.type('#ssopassword', ctx.webreg.password);
+            await page.click('button[type="submit"]');
+
+            // Wait for either Duo prompt or successful redirect
+            logNice(termLog, "Waiting for Duo 2FA or redirect");
+
+            let authenticated = false;
+            const duoCheckInterval = setInterval(async () => {
+                try {
+                    const url = page.url();
+                    if (url.includes("studentDarsSelfservice")) {
+                        authenticated = true;
+                    }
+                } catch (_) {}
+            }, 500);
+
+            try {
+                // Check for Duo prompt
+                const duoPrompt = await page.waitForSelector("#header-text", { timeout: 10000 }).catch(() => null);
+
+                if (duoPrompt && !authenticated) {
+                    logNice(termLog, "Duo 2FA required - accept the push notification");
+
+                    // Wait for trust browser button
+                    await page.waitForSelector("#trust-browser-button", { timeout: 60000 });
+                    logNice(termLog, "Duo 2FA accepted, clicking trust button");
+                    await waitFor(1000);
+                    await page.click("#trust-browser-button");
+                }
+            } catch (e) {
+                // May have already redirected
+            }
+
+            clearInterval(duoCheckInterval);
+
+            // Wait for DARS page to load
+            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+        }
+
+        // Verify we're on DARS
+        const finalUrl = page.url();
+        if (!finalUrl.includes("studentDarsSelfservice")) {
+            logNice(termLog, `Unexpected URL: ${finalUrl}`);
+            throw new Error("Failed to reach DARS system");
+        }
+
+        logNice(termLog, "Successfully authenticated to DARS");
+
+        // Extract cookies for the DARS domain
+        const cookies = await page.cookies("https://act.ucsd.edu/studentDarsSelfservice");
+        const cookieString = cookies.map(x => `${x.name}=${x.value}`).join("; ");
+
+        logNice(termLog, `Extracted ${cookies.length} cookies for DARS\n`);
+
+        await page.close();
+        return cookieString;
+
+    } catch (error) {
+        logNice(termLog, `Error fetching DARS cookies: ${error}`);
+        await page.close();
+        throw error;
+    }
+}
+
+/**
  * Scrapes degree audit data by navigating through the degree audit system.
  * This function:
  * 1. Ensures user is logged in (reuses existing session from fetchCookies)

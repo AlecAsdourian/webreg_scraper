@@ -10,7 +10,7 @@ import * as path from "path";
 import * as puppeteer from "puppeteer";
 import * as http from "http";
 import { parseArgs } from 'node:util';
-import { PUSH, fetchCookies, fetchDegreeAudit, getTermSeqId, logNice, printHelpMessage } from "./fns";
+import { PUSH, fetchCookies, fetchDarsCookies, fetchDegreeAudit, getTermSeqId, logNice, printHelpMessage } from "./fns";
 import { IConfig, Context, ITermInfo } from "./types";
 
 async function main(): Promise<void> {
@@ -90,11 +90,37 @@ async function main(): Promise<void> {
         }
 
         if (req.url === "/cookie") {
+            // Legacy endpoint - returns {"cookie": "..."}
             res.end(
                 JSON.stringify({
                     cookie: await fetchCookies(context, browser, false)
                 })
             );
+        } else if (req.url === "/cookies") {
+            // WebReg cookies - returns {"cookies": "..."}
+            res.end(
+                JSON.stringify({
+                    cookies: await fetchCookies(context, browser, false)
+                })
+            );
+        } else if (req.url === "/dars_cookies") {
+            // DARS-specific cookies for degree audit system - returns {"cookies": "..."}
+            try {
+                const darsCookies = await fetchDarsCookies(context, browser);
+                res.end(
+                    JSON.stringify({
+                        cookies: darsCookies
+                    })
+                );
+            } catch (error) {
+                res.statusCode = 500;
+                res.end(
+                    JSON.stringify({
+                        error: "Failed to fetch DARS cookies",
+                        message: error instanceof Error ? error.message : String(error)
+                    })
+                );
+            }
         } else if (req.url === "/degree_audit") {
             try {
                 const auditData = await fetchDegreeAudit(context, browser);

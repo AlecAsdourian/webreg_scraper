@@ -1,0 +1,145 @@
+{
+  "college_code": "TM",
+  "college_name": "Thurgood Marshall College",
+  "requirements": [
+    {
+      "category": "Dimensions of Culture (DOC)",
+      "subrequirements": [
+        {
+          "title": "DOC 1 (Diversity)",
+          "required_units": 4.0,
+          "eligible_courses": ["DOC 1"]
+        },
+        {
+          "title": "DOC 2 (Justice)",
+          "required_units": 6.0,
+          "eligible_courses": ["DOC 2"]
+        },
+        {
+          "title": "DOC 3 (Imagination)",
+          "required_units": 6.0,
+          "eligible_courses": ["DOC 3"]
+        }
+      ]
+    },
+    {
+      "category": "Natural Science",
+      "subrequirements": [
+        {
+          "title": "Biology Requirement",
+          "required_units": 4.0,
+          "eligible_courses": [
+            "ANTH 2",
+            "COGS 17",
+            "BILD 1", "BILD 2", "BILD 3", "BILD 7", "BILD 10", "BILD 12",
+            "BILD 18", "BILD 20", "BILD 22", "BILD 26", "BILD 28", "BILD 30",
+            "BILD 32", "BILD 36", "BILD 38", "BILD 42", "BILD 46", "BILD 61"
+          ]
+        },
+        {
+          "title": "Chemistry Requirement",
+          "required_units": 4.0,
+          "eligible_courses": [
+            "CHEM 4", "CHEM 6A", "CHEM 6B", "CHEM 6C",
+            "CHEM 6AH", "CHEM 6BH", "CHEM 6CH",
+            "CHEM 11", "CHEM 12", "CHEM 13"
+          ]
+        },
+        {
+          "title": "Physics Requirement",
+          "required_units": 4.0,
+          "eligible_courses": [
+            "ASTR 1", "ASTR 2", "ASTR 3", "ASTR 4",
+            "ESYS 10",
+            "PHYS 1A", "PHYS 1AL", "PHYS 1B", "PHYS 1BL", "PHYS 1C", "PHYS 1CL",
+            "PHYS 2A", "PHYS 2B", "PHYS 2C",
+            "PHYS 4A", "PHYS 4B", "PHYS 4C",
+            "PHYS 8", "PHYS 10", "PHYS 11", "PHYS 12",
+            "SIO 1", "SIO 10", "SIO 12", "SIO 15", "SIO 16", "SIO 20", "SIO 20R",
+            "SIO 30", "SIO 35", "SIO 40", "SIO 45", "SIO 50"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Mathematics, Statistics and Logic",
+      "subrequirements": [
+        {
+          "title": "Math/Stats/Logic Requirement (8 units total from approved categories)",
+          "required_units": 8.0,
+          "eligible_courses": [
+            "BIEB 100",
+            "MATH 3C", "MATH 4C", "MATH 10A", "MATH 10B", "MATH 10C", "MATH 11",
+            "MATH 20A", "MATH 20B", "MATH 20C", "MATH 180A", "MATH 181A",
+            "COGS 14A",
+            "HDS 60",
+            "POLI 30", "POLI 30D",
+            "PSYC 60",
+            "SOCI 60",
+            "BILD 62",
+            "COGS 18",
+            "CSE 6R", "CSE 8A", "CSE 11",
+            "CSS 1",
+            "LIGN 17",
+            "MAE 5",
+            "PHIL 10", "PHIL 12"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Humanities and Cultural Studies",
+      "subrequirements": [
+        {
+          "title": "Humanities Requirement (2 courses)",
+          "required_units": 8.0,
+          "eligible_courses": [
+            "AAS 10", "AAS 10R", "AAS 11", "AAS 11R", "AAS 14", "AAS 15",
+            "ETHN 1", "ETHN 1R", "ETHN 2", "ETHN 2R", "ETHN 3", "ETHN 3R",
+            "ETHN 20", "ETHN 20R", "ETHN 30",
+            "HILD 7A", "HILD 7B", "HILD 7C", "HILD 10", "HILD 11", "HILD 12", "HILD 14",
+            "LATI 10", "LATI 50",
+            "LTEN 27", "LTEN 28", "LTEN 29", "LTEN 31",
+            "RELI 2",
+            "GSS 20", "GSS 21", "GSS 22", "GSS 23", "GSS 24", "GSS 25", "GSS 26", "GSS 27"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Fine Arts",
+      "subrequirements": [
+        {
+          "title": "Fine Arts Requirement (1 course)",
+          "required_units": 4.0,
+          "eligible_courses": [
+            "MUS 4", "MUS 5", "MUS 6", "MUS 7", "MUS 8", "MUS 9", "MUS 10",
+            "MUS 11", "MUS 12", "MUS 13", "MUS 14", "MUS 15", "MUS 16", "MUS 17",
+            "MUS 18", "MUS 19", "MUS 20", "MUS 80",
+            "TDGE 1", "TDGE 5", "TDGE 10", "TDGE 11", "TDGE 12",
+            "TDHT 21", "TDHT 22", "TDHT 23",
+            "VIS 1", "VIS 2", "VIS 3", "VIS 20", "VIS 21A", "VIS 21B", "VIS 21C",
+            "VIS 22", "VIS 84"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Disciplinary Breadth",
+      "subrequirements": [
+        {
+          "title": "Lower Division Breadth (2 courses outside major)",
+          "required_units": 8.0,
+          "departments": [],
+          "level_filters": ["l"]
+        },
+        {
+          "title": "Upper Division Breadth (2 courses, 1 with significant writing)",
+          "required_units": 8.0,
+          "departments": [],
+          "level_filters": ["u"]
+        }
+      ]
+    }
+  ]
+}

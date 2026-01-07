@@ -1,6 +1,25 @@
-/// Degree audit scraping module
+//! Degree audit scraping module.
+//!
+//! This module provides functionality for:
+//! - Fetching degree audit data from UCSD's DARS system
+//! - Parsing the HTML into structured data
+//! - Caching results to reduce load
+//! - Processing requirements and generating recommendations
+
+// Core modules
+pub mod cache;
+pub mod client;
+pub mod config;
+pub mod error;
+pub mod job;
+pub mod processor;
 mod types;
 
+// Re-exports for convenience
+pub use cache::AuditCacheState;
+pub use client::DegreeAuditClient;
+pub use error::DegreeAuditError;
+pub use processor::*;
 pub use types::*;
 
 use crate::types::WrapperState;
@@ -179,12 +198,19 @@ fn parse_single_requirement(
     // Parse completed courses from subrequirements
     let courses = parse_courses_from_requirement(req_element)?;
 
-    // Calculate credits completed from courses
-    let credits_completed = if !courses.is_empty() {
-        Some(courses.iter().filter_map(|c| c.units).sum())
-    } else {
-        None
-    };
+    // Try to get earned units from requirementTotals table first
+    // This is more accurate than calculating from courses
+    let credits_completed = parse_req_earned_units(req_element).or_else(|| {
+        // Fallback: Calculate credits completed from courses
+        if !courses.is_empty() {
+            Some(courses.iter().filter_map(|c| c.units).sum())
+        } else {
+            None
+        }
+    });
+
+    // Parse subrequirements
+    let subrequirements = parse_subrequirements(req_element)?;
 
     Ok(Requirement {
         category,
@@ -193,6 +219,7 @@ fn parse_single_requirement(
         credits_required,
         credits_completed,
         courses,
+        subrequirements,
     })
 }
 
@@ -273,6 +300,292 @@ fn parse_course_row(
         term,
         status,
     })
+}
+
+/// Parses all subrequirements from a requirement element
+fn parse_subrequirements(
+    req_element: &scraper::ElementRef,
+) -> Result<Vec<Subrequirement>, Box<dyn std::error::Error>> {
+    let mut subrequirements = Vec::new();
+
+    let subreq_selector = Selector::parse("div.subrequirement").unwrap();
+
+    for subreq_elem in req_element.select(&subreq_selector) {
+        if let Ok(subreq) = parse_single_subrequirement(&subreq_elem) {
+            subrequirements.push(subreq);
+        }
+    }
+
+    Ok(subrequirements)
+}
+
+/// Parses a single subrequirement div
+fn parse_single_subrequirement(
+    subreq_elem: &scraper::ElementRef,
+) -> Result<Subrequirement, Box<dyn std::error::Error>> {
+    // Extract id attribute
+    let id = subreq_elem
+        .value()
+        .attr("id")
+        .unwrap_or("unknown")
+        .to_string();
+
+    // Extract title
+    let title_selector = Selector::parse(".subreqTitle").unwrap();
+    let title = subreq_elem
+        .select(&title_selector)
+        .next()
+        .map(|el| el.text().collect::<String>().trim().to_string())
+        .unwrap_or_default();
+
+    // Extract required units from rqdhours attribute
+    let required_units = subreq_elem
+        .value()
+        .attr("rqdhours")
+        .and_then(|s| s.parse::<f32>().ok())
+        .unwrap_or(0.0);
+
+    // Parse status from class attribute
+    let class_attr = subreq_elem.value().attr("class").unwrap_or("");
+    let status = if class_attr.contains("Status_OK") {
+        RequirementStatus::Complete
+    } else if class_attr.contains("Status_IP") {
+        RequirementStatus::InProgress
+    } else if class_attr.contains("Status_NO") {
+        RequirementStatus::NotStarted
+    } else {
+        RequirementStatus::NotApplicable
+    };
+
+    // Parse eligible courses from selectcourses table
+    let eligible_courses = parse_eligible_courses(&subreq_elem)?;
+
+    // Parse category groups
+    let category_groups = parse_course_categories(&subreq_elem)?;
+
+    // Parse completed courses from completedCourses table
+    let completed_courses = parse_completed_courses_in_subreq(&subreq_elem)?;
+
+    // Try to get earned units from subrequirementTotals table first
+    // This is more accurate than calculating from courses since some subrequirements
+    // show totals without listing individual courses
+    let units_completed = parse_subreq_earned_units(&subreq_elem).unwrap_or_else(|| {
+        // Fallback: Calculate completed units from courses (only count passing grades)
+        completed_courses
+            .iter()
+            .filter_map(|c| {
+                if let (Some(grade), Some(units)) = (&c.grade, c.units) {
+                    if GradeValidator::is_passing_grade(grade) {
+                        Some(units)
+                    } else {
+                        None
+                    }
+                } else {
+                    c.units
+                }
+            })
+            .sum()
+    });
+
+    let units_remaining = (required_units - units_completed).max(0.0);
+
+    Ok(Subrequirement {
+        id,
+        title,
+        required_units,
+        units_completed,
+        units_remaining,
+        status,
+        eligible_courses,
+        completed_courses,
+        category_groups,
+    })
+}
+
+/// Parses eligible courses from selectcourses table
+fn parse_eligible_courses(
+    subreq_elem: &scraper::ElementRef,
+) -> Result<Vec<EligibleCourse>, Box<dyn std::error::Error>> {
+    let mut courses = Vec::new();
+
+    let table_selector = Selector::parse("table.selectcourses").unwrap();
+    let course_selector = Selector::parse("span.course").unwrap();
+
+    for table in subreq_elem.select(&table_selector) {
+        for course_span in table.select(&course_selector) {
+            // Extract department from attribute
+            let department = course_span
+                .value()
+                .attr("department")
+                .unwrap_or("")
+                .trim()
+                .to_string();
+
+            // Extract course number from attribute
+            let course_number = course_span
+                .value()
+                .attr("number")
+                .unwrap_or("")
+                .trim()
+                .to_string();
+
+            // Extract full code from span.number text
+            let number_selector = Selector::parse("span.number").unwrap();
+            let full_code = course_span
+                .select(&number_selector)
+                .next()
+                .map(|el| el.text().collect::<String>().trim().to_string())
+                .unwrap_or_else(|| format!("{} {}", department, course_number));
+
+            if !department.is_empty() && !course_number.is_empty() {
+                courses.push(EligibleCourse {
+                    department,
+                    course_number,
+                    full_code,
+                });
+            }
+        }
+    }
+
+    Ok(courses)
+}
+
+/// Parses course category groups (e.g., "APPLIED MATH", "COMPUTATIONAL")
+fn parse_course_categories(
+    subreq_elem: &scraper::ElementRef,
+) -> Result<Vec<CourseCategory>, Box<dyn std::error::Error>> {
+    let mut categories = Vec::new();
+
+    let table_selector = Selector::parse("table.selectcourses").unwrap();
+    let fromcourselist_selector = Selector::parse("td.fromcourselist table tr").unwrap();
+
+    for table in subreq_elem.select(&table_selector) {
+        for row in table.select(&fromcourselist_selector) {
+            let text = row.text().collect::<String>();
+
+            // Extract category name (usually all caps at start of line, before first course)
+            // Pattern: "APPLIED MATH  MATH 170A,170B,..."
+            let category_regex = Regex::new(r"^([A-Z][A-Z\s\-]+?)\s{2,}")?;
+            let category_name = if let Some(caps) = category_regex.captures(&text) {
+                caps.get(1).map(|m| m.as_str().trim().to_string())
+            } else {
+                None
+            };
+
+            // Parse courses in this row
+            let course_selector = Selector::parse("span.course").unwrap();
+            let row_courses: Vec<EligibleCourse> = row
+                .select(&course_selector)
+                .filter_map(|span| {
+                    let department = span.value().attr("department")?.trim().to_string();
+                    let course_number = span.value().attr("number")?.trim().to_string();
+                    let number_selector = Selector::parse("span.number").unwrap();
+                    let full_code = span
+                        .select(&number_selector)
+                        .next()
+                        .map(|el| el.text().collect::<String>().trim().to_string())
+                        .unwrap_or_else(|| format!("{} {}", department, course_number));
+
+                    if !department.is_empty() && !course_number.is_empty() {
+                        Some(EligibleCourse {
+                            department,
+                            course_number,
+                            full_code,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if let Some(name) = category_name {
+                if !row_courses.is_empty() {
+                    categories.push(CourseCategory {
+                        name,
+                        courses: row_courses,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(categories)
+}
+
+/// Parses completed courses within a subrequirement
+fn parse_completed_courses_in_subreq(
+    subreq_elem: &scraper::ElementRef,
+) -> Result<Vec<CourseRequirement>, Box<dyn std::error::Error>> {
+    let mut courses = Vec::new();
+
+    let table_selector = Selector::parse("table.completedCourses").unwrap();
+    let row_selector = Selector::parse("tr.takenCourse").unwrap();
+
+    for table in subreq_elem.select(&table_selector) {
+        for row in table.select(&row_selector) {
+            if let Ok(course) = parse_course_row(&row) {
+                courses.push(course);
+            }
+        }
+    }
+
+    Ok(courses)
+}
+
+/// Parses earned units from the subrequirementTotals table
+///
+/// The HTML structure is:
+/// ```html
+/// <table class="subrequirementTotals">
+///   <tr class="subreqEarned">
+///     <td class="bigcolumn">
+///       <span class="hours number">108.00</span>
+///     </td>
+///   </tr>
+/// </table>
+/// ```
+fn parse_subreq_earned_units(subreq_elem: &scraper::ElementRef) -> Option<f32> {
+    let table_selector = Selector::parse("table.subrequirementTotals").ok()?;
+    let earned_selector = Selector::parse("tr.subreqEarned span.hours.number").ok()?;
+
+    for table in subreq_elem.select(&table_selector) {
+        if let Some(earned_span) = table.select(&earned_selector).next() {
+            let text = earned_span.text().collect::<String>();
+            if let Ok(units) = text.trim().parse::<f32>() {
+                return Some(units);
+            }
+        }
+    }
+
+    None
+}
+
+/// Parses earned units from the requirementTotals table
+///
+/// The HTML structure is:
+/// ```html
+/// <table class="requirementTotals">
+///   <tr class="reqEarned">
+///     <td class="hourscount bigcolumn">
+///       <span class="hours number">164.00</span>
+///     </td>
+///   </tr>
+/// </table>
+/// ```
+fn parse_req_earned_units(req_elem: &scraper::ElementRef) -> Option<f32> {
+    let table_selector = Selector::parse("table.requirementTotals").ok()?;
+    let earned_selector = Selector::parse("tr.reqEarned span.hours.number").ok()?;
+
+    for table in req_elem.select(&table_selector) {
+        if let Some(earned_span) = table.select(&earned_selector).next() {
+            let text = earned_span.text().collect::<String>();
+            if let Ok(units) = text.trim().parse::<f32>() {
+                return Some(units);
+            }
+        }
+    }
+
+    None
 }
 
 /// Fetches and parses degree audit data in one step

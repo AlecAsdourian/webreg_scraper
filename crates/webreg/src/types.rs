@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use webweg::wrapper::input_types::{CourseLevelFilter, SearchRequestBuilder};
 use webweg::wrapper::WebRegWrapper;
 
+use crate::degree_audit::{AuditCacheState, DegreeAuditClient};
+
 const MAX_RECENT_REQUESTS: usize = 2000;
 
 /// A structure that represents the current state of all wrappers.
@@ -33,6 +35,12 @@ pub struct WrapperState {
     /// The authentication manager, to be used by the server.
     #[cfg(feature = "auth")]
     pub auth_manager: basicauth::AuthManager,
+    /// Requirements configuration for colleges and majors.
+    pub requirements_config: crate::degree_audit::config::RequirementsConfig,
+    /// Degree audit client for fetching and caching audits.
+    pub degree_audit_client: DegreeAuditClient,
+    /// Shared cache state for degree audits.
+    pub degree_audit_cache_state: Arc<AuditCacheState>,
 }
 
 impl WrapperState {
@@ -79,6 +87,21 @@ impl WrapperState {
             .map(|data| (data.term.to_owned(), Arc::new(data)))
             .collect();
 
+        // Load requirements config from directory
+        let requirements_config_path = std::path::Path::new("requirements_config");
+        let requirements_config = crate::degree_audit::config::RequirementsConfig::load_from_directory(
+            requirements_config_path,
+        )
+        .unwrap_or_else(|e| {
+            tracing::warn!("Failed to load requirements config: {}. Using empty config.", e);
+            crate::degree_audit::config::RequirementsConfig::default()
+        });
+
+        // Initialize degree audit cache state and client
+        let degree_audit_cache_state = Arc::new(AuditCacheState::new());
+        let degree_audit_client = DegreeAuditClient::new(degree_audit_cache_state.clone())
+            .expect("Failed to create degree audit client");
+
         Self {
             all_terms: term_info,
             stop_flag: AtomicBool::from(false),
@@ -98,6 +121,9 @@ impl WrapperState {
             schedule_db: crate::db::ScheduleDbManager::new("schedules.db"),
             #[cfg(feature = "auth")]
             auth_manager: basicauth::AuthManager::new("auth.db"),
+            requirements_config,
+            degree_audit_client,
+            degree_audit_cache_state,
         }
     }
 

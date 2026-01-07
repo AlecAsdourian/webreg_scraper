@@ -1,3 +1,4 @@
+use chrono;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -78,12 +79,14 @@ pub async fn run_tracker(state: Arc<WrapperState>, verbose: bool) {
                         .sum();
                     info!("  Total courses: {}", total_courses);
 
-                    // Save parsed data as JSON
+                    // Save parsed data as JSON with timestamp
                     if let Ok(json) = serde_json::to_string_pretty(&parsed_audit) {
-                        if let Err(e) = std::fs::write("degree_audit_parsed.json", json) {
+                        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+                        let filename = format!("degree_audit_parsed_{}.json", timestamp);
+                        if let Err(e) = std::fs::write(&filename, json) {
                             warn!("Failed to save parsed degree audit JSON: {}", e);
                         } else {
-                            info!("Saved parsed degree audit to degree_audit_parsed.json");
+                            info!("Saved parsed degree audit to {}", filename);
                         }
                     }
 

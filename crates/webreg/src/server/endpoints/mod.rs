@@ -1,3 +1,4 @@
+pub mod degree_audit;
 pub mod schedule;
 pub mod status;
 pub mod ww_cookies;

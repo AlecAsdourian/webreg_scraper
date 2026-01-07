@@ -14,6 +14,7 @@ config.json
 # Degree audit output files
 degree_audit.html
 degree_audit_parsed.json
+degree_audit_parsed_*.json
 degree_audit_test.json
 
 # HTML structure reference files

@@ -1,0 +1,102 @@
+{
+  "major_code": "MA30",
+  "major_name": "Mathematics-Computer Science",
+  "requirements": [
+    {
+      "category": "Lower Division Math Requirements",
+      "subrequirements": [
+        {
+          "title": "Calculus Sequence",
+          "required_units": 20.0,
+          "eligible_courses": [
+            "MATH 20A",
+            "MATH 20B",
+            "MATH 20C",
+            "MATH 20D",
+            "MATH 20E"
+          ]
+        },
+        {
+          "title": "Linear Algebra",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 18"]
+        }
+      ]
+    },
+    {
+      "category": "Lower Division CS Requirements",
+      "subrequirements": [
+        {
+          "title": "Programming Foundation",
+          "required_units": 16.0,
+          "eligible_courses": [
+            "CSE 8A",
+            "CSE 8B",
+            "CSE 11",
+            "CSE 12",
+            "CSE 15L",
+            "CSE 20",
+            "CSE 21"
+          ]
+        },
+        {
+          "title": "Discrete Math",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 15A", "MATH 109"]
+        }
+      ]
+    },
+    {
+      "category": "Upper Division Math Requirements",
+      "subrequirements": [
+        {
+          "title": "Abstract Algebra",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 100A"]
+        },
+        {
+          "title": "Modern Algebra",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 102"]
+        },
+        {
+          "title": "Numerical Methods",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 184", "MATH 174"]
+        },
+        {
+          "title": "Optimization",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 188", "MATH 171A"]
+        }
+      ]
+    },
+    {
+      "category": "Upper Division CS Requirements",
+      "subrequirements": [
+        {
+          "title": "Core CSE Courses",
+          "required_units": 16.0,
+          "eligible_courses": [
+            "CSE 100",
+            "CSE 101",
+            "CSE 105",
+            "CSE 140",
+            "CSE 140L"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Upper Division Electives",
+      "subrequirements": [
+        {
+          "title": "General Math-CS Electives",
+          "required_units": 8.0,
+          "departments": ["MATH", "CSE", "COGS"],
+          "level_filters": ["u", "g"]
+        }
+      ]
+    }
+  ]
+}

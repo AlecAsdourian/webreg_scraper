@@ -1,0 +1,49 @@
+{
+  "college_code": "WA",
+  "college_name": "Earl Warren College",
+  "requirements": [
+    {
+      "category": "Lower Division Writing",
+      "subrequirements": [
+        {
+          "title": "Warren Writing 10A",
+          "required_units": 4.0,
+          "eligible_courses": ["WARR 10A"]
+        },
+        {
+          "title": "Warren Writing 10B",
+          "required_units": 4.0,
+          "eligible_courses": ["WARR 10B"]
+        }
+      ]
+    },
+    {
+      "category": "Upper Division Programs of Concentration",
+      "subrequirements": [
+        {
+          "title": "Programs of Concentration (PofC) - Area 1",
+          "required_units": 12.0,
+          "departments": ["MATH", "PHYS", "CHEM", "BIOL"],
+          "level_filters": ["u"]
+        },
+        {
+          "title": "Programs of Concentration (PofC) - Area 2",
+          "required_units": 12.0,
+          "departments": ["ECON", "POLI", "SOC", "PSYC"],
+          "level_filters": ["u"]
+        }
+      ]
+    },
+    {
+      "category": "Ethics and Society",
+      "subrequirements": [
+        {
+          "title": "Ethics and Society Requirement",
+          "required_units": 4.0,
+          "departments": ["PHIL", "WARR"],
+          "level_filters": ["u"]
+        }
+      ]
+    }
+  ]
+}

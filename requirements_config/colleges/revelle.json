@@ -1,0 +1,67 @@
+{
+  "college_code": "RE",
+  "college_name": "Revelle College",
+  "requirements": [
+    {
+      "category": "Humanities (HUM) Sequence",
+      "subrequirements": [
+        {
+          "title": "Humanities 1",
+          "required_units": 6.0,
+          "eligible_courses": ["HUM 1"]
+        },
+        {
+          "title": "Humanities 2",
+          "required_units": 6.0,
+          "eligible_courses": ["HUM 2"]
+        },
+        {
+          "title": "Humanities 3",
+          "required_units": 6.0,
+          "eligible_courses": ["HUM 3"]
+        },
+        {
+          "title": "Humanities 4",
+          "required_units": 6.0,
+          "eligible_courses": ["HUM 4"]
+        },
+        {
+          "title": "Humanities 5",
+          "required_units": 6.0,
+          "eligible_courses": ["HUM 5"]
+        }
+      ]
+    },
+    {
+      "category": "Calculus Sequence",
+      "subrequirements": [
+        {
+          "title": "Calculus I",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 10A", "MATH 20A"]
+        },
+        {
+          "title": "Calculus II",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 10B", "MATH 20B"]
+        },
+        {
+          "title": "Calculus III",
+          "required_units": 4.0,
+          "eligible_courses": ["MATH 10C", "MATH 20C"]
+        }
+      ]
+    },
+    {
+      "category": "Natural Sciences",
+      "subrequirements": [
+        {
+          "title": "Natural Science Requirement",
+          "required_units": 12.0,
+          "departments": ["PHYS", "CHEM", "BIOL"],
+          "level_filters": ["l", "u"]
+        }
+      ]
+    }
+  ]
+}
